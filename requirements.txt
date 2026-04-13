@@ -1,5 +1,4 @@
 fastapi
 uvicorn[standard]
-akshare
 yfinance
 pandas
