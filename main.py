@@ -13,17 +13,24 @@ def root():
 @app.get("/stock/realtime")
 def get_realtime(symbol: str = Query(..., description="股票代码，如 000001 或 AAPL")):
     try:
-        if symbol.isdigit():
-            df = ak.stock_zh_a_spot_em()
-            row = df[df['代码'] == symbol].iloc[0]
+        if symbol.isdigit():  # A股 - 用单只股票接口，速度更快
+            df = ak.stock_individual_info_em(symbol=symbol)
+            info = dict(zip(df['item'], df['value']))
+            # 用历史数据取最新价
+            hist = ak.stock_zh_a_hist(
+                symbol=symbol, period="daily",
+                start_date=(datetime.now() - timedelta(days=5)).strftime("%Y%m%d"),
+                end_date=datetime.now().strftime("%Y%m%d"), adjust="qfq"
+            )
+            latest = hist.iloc[-1]
             return {
                 "symbol": symbol,
-                "name": row['名称'],
-                "price": float(row['最新价']),
-                "change_pct": float(row['涨跌幅']),
-                "volume": float(row['成交量']),
+                "name": info.get('股票简称', ''),
+                "price": float(latest['收盘']),
+                "change_pct": float(latest['涨跌幅']),
+                "volume": float(latest['成交量']),
             }
-        else:
+        else:  # 美股
             ticker = yf.Ticker(symbol)
             info = ticker.fast_info
             return {
@@ -33,7 +40,6 @@ def get_realtime(symbol: str = Query(..., description="股票代码，如 000001
             }
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
-
 
 @app.get("/stock/indicators")
 def get_indicators(symbol: str = Query(...)):
